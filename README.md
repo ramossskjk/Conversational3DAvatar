@@ -1,112 +1,125 @@
-# ✦ Kira — AI VTuber
+-_____________________________________________________________________________________________________________________________________-
 
-Projeto base de uma VTuber com IA integrada, feita com React + Vite + Claude API.
+Conversational3DAvatar
 
----
+3D conversational avatar built with React, Vite and Three.js, integrated with an LLM API.
 
-## 📁 Estrutura do Projeto
+This project explores real-time conversational interaction with a VRM-based 3D character rendered in the browser.
 
-```
-kira-vtuber/
-├── .env                              # Chaves de API (não subir pro Git!)
-├── .gitignore
-├── index.html
-├── package.json
-├── vite.config.js
-└── src/
-    ├── main.jsx
-    ├── App.jsx                       # Componente raiz (configure VRM_URL aqui)
-    │
-    ├── components/
-    │   ├── Avatar.jsx                # Avatar SVG animado (padrão)
-    │   ├── AvatarVRM.jsx             # Avatar 3D com modelo .vrm
-    │   ├── StreamFrame.jsx           # Moldura live + seletor de humor
-    │   ├── ChatPanel.jsx             # Painel de chat
-    │   └── BackgroundParticles.jsx   # Partículas decorativas
-    │
-    ├── hooks/
-    │   ├── useKiraChat.js            # Lógica de chat e estado
-    │   └── useVoice.js               # Síntese de voz (ElevenLabs ou Web Speech)
-    │
-    ├── services/
-    │   ├── claudeApi.js              # API do Claude (Anthropic)
-    │   └── openaiApi.js              # API do ChatGPT (OpenAI) — opcional
-    │
-    ├── constants/
-    │   ├── moods.js                  # Humores e parâmetros visuais
-    │   └── persona.js                # System prompt e mensagens da Kira
-    │
-    └── styles/
-        └── globals.css               # Animações e estilos globais
-```
+-______________________________________________________________________________________________________________________________________-
 
----
+Overview
 
-## 🚀 Como rodar
+Conversational3DAvatar renders a VRM avatar using Three.js and connects it to a large language model API for text-based interaction.
 
-```bash
+The current focus of the project is:
+
+3D avatar rendering (VRM format)
+
+Text-based conversational interface
+
+LLM integration via API
+
+Modular project architecture for future expansion
+
+
+Voice interaction, streaming integration, and advanced contextual memory are not yet implemented.
+
+-______________________________________________________________________________________________________-
+
+Tech Stack
+
+React
+
+Vite
+
+Three.js
+
+@pixiv/three-vrm
+
+Groq API (LLaMA 3.x)
+
+-__________________________________________________________________________________________________________-
+
+Project Structure
+
+node_modules/
+public/
+server/
+src/
+.env
+.gitignore
+vite.config.js
+package.json
+
+-____________________________________________________________-
+
+Running Locally
+
 npm install
 npm run dev
-```
 
----
+-_______________________________________________________________-
 
-## 🔑 Variáveis de ambiente (.env)
+Environment Variables
 
-```env
-# IA (escolha uma)
-VITE_OPENAI_KEY=sk-proj-...          # ChatGPT (pago por uso)
-# Claude funciona sem chave no ambiente Claude.ai
+Create a .env file in the project root:
 
-# Voz (opcional — sem chave usa Web Speech API grátis)
-VITE_ELEVENLABS_KEY=...
-VITE_ELEVENLABS_VOICE_ID=...         # ID da voz no ElevenLabs
-```
+VITE_GROQ_API_KEY=your_api_key_here
 
----
+The .env file must not be committed to version control.
 
-## 🎭 Ativar modelo 3D VRM
+-______________________________________________________________________-
 
-1. Instale as dependências:
-```bash
+VRM Model Setup
+
+1. Install dependencies:
+
 npm install three @pixiv/three-vrm
-```
 
-2. Coloque seu arquivo `.vrm` em `/public/kira.vrm`
+2. Place a .vrm file inside the /public directory.
 
-3. No `src/App.jsx`, troque:
-```js
-const VRM_URL = null;
-// para:
-const VRM_URL = "/kira.vrm";
-```
 
-**Onde conseguir um modelo VRM:**
-- Criar: [vroid.com](https://vroid.com) — gratuito
-- Comprar: [booth.pm](https://booth.pm) — marketplace japonês
-- Encomendar: Fiverr / Twitter com `#VRoidCommission`
+3. Configure the model path inside App.jsx:
 
----
 
-## 🎙️ Ativar voz (ElevenLabs)
+const VRM_URL = "/avatar.vrm";
 
-1. Crie conta em [elevenlabs.io](https://elevenlabs.io)
-2. Crie uma voz para a Kira
-3. Copie a API Key e o Voice ID
-4. Adicione no `.env`:
-```env
-VITE_ELEVENLABS_KEY=sua_chave
-VITE_ELEVENLABS_VOICE_ID=id_da_voz
-```
+-______________________________________________________________________________-
 
-Sem configurar ElevenLabs, o projeto usa a **Web Speech API** do browser automaticamente (grátis, qualidade menor).
+Current Capabilities
 
----
+Loads and renders a VRM 3D model
 
-## 🛠️ Próximas features sugeridas
+Basic animation loop
 
-- [ ] Leitura do chat do YouTube/Twitch em tempo real
-- [ ] Modo "stream overlay" (fundo transparente para OBS)
-- [ ] Memória de conversa entre sessões
-- [ ] Múltiplos personagens / personas
-- [ ] STT — falar com a Kira pelo microfone
+Text-based conversation via LLM API
+
+Persona configuration through system prompt
+
+
+-__________________________________________________________________________-
+
+Not Implemented Yet
+
+Speech-to-text
+
+Text-to-speech
+
+Persistent memory storage
+
+YouTube/Twitch chat integration
+
+Desktop overlay mode
+
+
+These are planned as future extensions.
+
+
+-___________________________________________________________________________________________________________________________________________________-
+
+Project Goal
+
+The long-term objective is to evolve this into a modular conversational 3D assistant with real-time interaction capabilities, potentially suitable for streaming or productivity companion scenarios.
+
+-________________________________________________________________________________________________________________________________________________________-

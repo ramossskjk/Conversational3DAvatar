@@ -1,0 +1,45 @@
+@keyframes twinkle {
+  0%, 100% { opacity: 0.2; transform: scale(1);   }
+  50%       { opacity: 1;   transform: scale(1.5); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0);     }
+  50%       { transform: translateY(-10px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px #ff6eb466; }
+  50%       { box-shadow: 0 0 40px #ff6eb4aa, 0 0 60px #a855f755; }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Reusable classes */
+.msg-bubble { animation: slideIn 0.3s ease forwards; }
+
+.chat-input:focus {
+  outline: none;
+  border-color: #ff6eb4 !important;
+  box-shadow: 0 0 15px #ff6eb433 !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar       { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #a855f755; border-radius: 4px; }
+
+/* Reset */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #0d0118 0%, #1a0a2e 40%, #0d0118 100%);
+  min-height: 100vh;
+}

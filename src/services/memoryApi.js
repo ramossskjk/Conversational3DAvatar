@@ -1,70 +1,82 @@
-const SERVER = "http://localhost:3001";
+// Detecta se está rodando no Electron ou no browser puro
+const isElectron = typeof window !== "undefined" && !!window.electronAPI;
+
+// ── API unificada — funciona em ambos os ambientes ────────────────────────────
 
 export async function loadMemory() {
   try {
-    const res = await fetch(`${SERVER}/memory`);
-    if (!res.ok) throw new Error();
+    if (isElectron) {
+      const data = await window.electronAPI.getMemory();
+      return {
+        recentMessages:  data.recentMessages  ?? [],
+        facts:           data.facts           ?? [],
+        summary:         data.summary         ?? "",
+        importantEvents: data.importantEvents ?? [],
+      };
+    }
+    // Fallback HTTP (dev sem Electron)
+    const res  = await fetch("http://localhost:3001/memory");
     const data = await res.json();
     return {
-      messages: data.messages ?? [],
-      facts:    data.facts    ?? [],
-      summary:  data.summary  ?? "",
+      recentMessages:  data.recentMessages ?? data.messages ?? [],
+      facts:           data.facts           ?? [],
+      summary:         data.summary         ?? "",
+      importantEvents: data.importantEvents ?? [],
     };
   } catch {
-    console.warn("Memory server offline — usando sessão local.");
-    return { messages: [], facts: [], summary: "" };
+    console.warn("Memory unavailable — usando sessão local.");
+    return { recentMessages: [], facts: [], summary: "", importantEvents: [] };
   }
 }
 
 export async function saveMemory(messages) {
   try {
-    const res = await fetch(`${SERVER}/memory`, {
+    if (isElectron) {
+      const data = await window.electronAPI.saveMemory(messages);
+      if (data?.summarized) {
+        console.info(`🧠 Sumarizado — fatos: ${data.factCount} | eventos: ${data.eventCount} | msgs: ${data.messageCount}`);
+      }
+      return data;
+    }
+    const res  = await fetch("http://localhost:3001/memory", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages }),
     });
-    if (!res.ok) throw new Error();
-    const data = await res.json();
-    if (data.summarized) {
-      console.info(`🧠 Memória sumarizada — fatos: ${data.factCount}, msgs mantidas: ${data.messageCount}`);
-    }
-    return data;
+    return await res.json();
   } catch {}
 }
 
 export async function clearMemory() {
   try {
-    await fetch(`${SERVER}/memory`, { method: "DELETE" });
+    if (isElectron) return window.electronAPI.clearMemory();
+    await fetch("http://localhost:3001/memory", { method: "DELETE" });
   } catch {}
-}
-
-export async function loadFacts() {
-  try {
-    const res = await fetch(`${SERVER}/memory/facts`);
-    if (!res.ok) throw new Error();
-    const { facts } = await res.json();
-    return facts;
-  } catch {
-    return [];
-  }
-}
-
-export async function checkServer() {
-  try {
-    const res = await fetch(`${SERVER}/status`);
-    if (!res.ok) return false;
-    return await res.json();
-  } catch {
-    return false;
-  }
 }
 
 export async function saveFact(fact) {
   try {
-    await fetch(`${SERVER}/memory/facts`, {
+    if (isElectron) return window.electronAPI.addFact(fact);
+    await fetch("http://localhost:3001/memory/facts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fact }),
     });
   } catch {}
+}
+
+export async function forceSummarize() {
+  try {
+    if (isElectron) return window.electronAPI.forceSummarize();
+    const res = await fetch("http://localhost:3001/memory/summarize", { method: "POST" });
+    return await res.json();
+  } catch { return null; }
+}
+
+export async function checkServer() {
+  try {
+    if (isElectron) return window.electronAPI.getStatus();
+    const res = await fetch("http://localhost:3001/status");
+    return await res.json();
+  } catch { return false; }
 }

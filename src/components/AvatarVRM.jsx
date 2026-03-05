@@ -6,11 +6,7 @@ import { VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
 const CANVAS_W = 720;
 const CANVAS_H = 1080;
 
-// Lerp suave entre dois valores
 const lerp = (a, b, t) => a + (b - a) * t;
-
-// Easing suave (ease in-out)
-const easeInOut = (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 
 export function AvatarVRM({ modelUrl, mood, isTalking }) {
   const mountRef = useRef(null);
@@ -23,17 +19,18 @@ export function AvatarVRM({ modelUrl, mood, isTalking }) {
     blinkTimer: Math.random() * 3 + 1.5,
     lookX: 0,
     lookY: 0,
+    moodTiltZ: 0,
 
-    // Pose atual de cada osso (lerp target)
-    bones: {},
-
-    // Wave state machine
-    wave: {
-      active: false,
-      phase: 0,       // 0=idle, 1=raise, 2=wave, 3=lower
-      timer: 0,
-      nextWave: 4 + Math.random() * 6,
+    // ── Head drift — vira sozinha periodicamente ──────────────────────
+    headDrift: {
+      targetY:   0,
+      currentY:  0,
+      timer:     0,
+      nextDrift: 3 + Math.random() * 4,
     },
+
+    // ── Breathing — fase aleatória inicial ───────────────────────────
+    breathOffset: Math.random() * Math.PI * 2,
   });
 
   useEffect(() => {
@@ -103,27 +100,23 @@ export function AvatarVRM({ modelUrl, mood, isTalking }) {
       scene.add(vrm.scene);
       s.vrm = vrm;
 
-      // Inicializa pose de descanso suavemente
+      // Pose inicial dos braços
       const h = vrm.humanoid;
-      const restPose = {
-        leftUpperArm:  { z:  1.1  },
-        rightUpperArm: { z: -1.1  },
-        leftLowerArm:  { x:  0.15, z:  0.3 },
-        rightLowerArm: { x:  0.15, z: -0.3 },
-        leftHand:      { z:  0.1  },
-        rightHand:     { z: -0.1  },
-        spine:         { x:  0.02 },
-        chest:         { x: -0.02 },
+      const getBoneInit = name => h?.getNormalizedBoneNode(name);
+      const init = (name, x, z) => {
+        const b = getBoneInit(name);
+        if (!b) return;
+        if (x != null) b.rotation.x = x;
+        if (z != null) b.rotation.z = z;
       };
-
-      // Guarda pose alvo para cada osso
-      Object.entries(restPose).forEach(([name, rot]) => {
-        s.bones[name] = { ...rot };
-        const bone = h?.getNormalizedBoneNode(name);
-        if (!bone) return;
-        if (rot.x != null) bone.rotation.x = rot.x;
-        if (rot.z != null) bone.rotation.z = rot.z;
-      });
+      init("leftUpperArm",   null,  1.1);
+      init("rightUpperArm",  null, -1.1);
+      init("leftLowerArm",   0.15,  0.3);
+      init("rightLowerArm",  0.15, -0.3);
+      init("leftHand",       null,  0.1);
+      init("rightHand",      null, -0.1);
+      init("spine",          0.02, null);
+      init("chest",         -0.02, null);
 
     }, undefined, err => console.error("VRM error:", err));
 
@@ -132,31 +125,77 @@ export function AvatarVRM({ modelUrl, mood, isTalking }) {
       frameId = requestAnimationFrame(animate);
       const delta = s.clock.getDelta();
       const t     = s.clock.elapsedTime;
-      const { vrm, wave } = s;
+      const { vrm, headDrift } = s;
 
       if (vrm) {
         const h  = vrm.humanoid;
         const em = vrm.expressionManager;
         const getBone = name => h?.getNormalizedBoneNode(name);
 
-        // Velocidade de lerp — mais baixo = mais fluido/lento
-        const SMOOTH = 1 - Math.pow(0.01, delta);  // ~suave
-        const FAST   = 1 - Math.pow(0.05, delta);  // ~rápido
+        const SMOOTH = 1 - Math.pow(0.01, delta);
+        const DRIFT  = 1 - Math.pow(0.004, delta); // mais lento que SMOOTH
 
-        // ── Mouse look ─────────────────────────────────────────────────
+        // ── Respiração ─────────────────────────────────────────────────
+        // Ciclo de 4s — seno suave pra simular inspiração/expiração
+        const breathCycle = Math.sin((t + s.breathOffset) * (Math.PI * 2 / 4));
+        // breathCycle vai de -1 a 1 com período de 4 segundos
+
+        const chest = getBone("chest");
+        const spine = getBone("spine");
+        const hips  = getBone("hips");
+
+        // Chest abre levemente ao inspirar
+        if (chest) chest.rotation.x = lerp(
+          chest.rotation.x,
+          -0.02 + breathCycle * 0.022,  // ±0.022 — visível mas não exagerado
+          SMOOTH
+        );
+        // Spine acompanha em sentido oposto
+        if (spine) spine.rotation.x = lerp(
+          spine.rotation.x,
+          0.02 - breathCycle * 0.012,
+          SMOOTH
+        );
+        // Hips sobe e desce — dá a sensação de corpo inteiro respirando
+        if (hips) {
+          hips.rotation.z = lerp(hips.rotation.z, Math.sin(t * 0.7) * 0.01, SMOOTH);
+          hips.rotation.x = lerp(hips.rotation.x, breathCycle * 0.008, SMOOTH);
+        }
+
+        // ── Head drift autônomo ────────────────────────────────────────
+        headDrift.timer += delta;
+        if (headDrift.timer >= headDrift.nextDrift) {
+          headDrift.timer     = 0;
+          headDrift.nextDrift = 2.5 + Math.random() * 4.5; // próxima virada em 2.5–7s
+
+          // Escolhe um novo alvo: centro, levemente esquerda ou direita
+          const roll = Math.random();
+          if (roll < 0.35)       headDrift.targetY =  0;          // volta pro centro
+          else if (roll < 0.67)  headDrift.targetY = -(0.12 + Math.random() * 0.12); // esquerda
+          else                   headDrift.targetY =  (0.12 + Math.random() * 0.12); // direita
+        }
+
+        // Suaviza o drift independente do mouse
+        headDrift.currentY = lerp(headDrift.currentY, headDrift.targetY, DRIFT);
+
+        // ── Mouse look + drift combinados ─────────────────────────────
         s.lookX = lerp(s.lookX, mouseRef.current.x * 0.22, SMOOTH);
         s.lookY = lerp(s.lookY, mouseRef.current.y * 0.13, SMOOTH);
 
         const head = getBone("head");
         const neck = getBone("neck");
-        const tgtHY = s.lookX * 0.7 + Math.sin(t * 0.3) * 0.03;
-        const tgtHX = s.lookY * 0.7 + Math.sin(t * 0.2) * 0.02 - 0.02;
+
+        // Y final = mouse look + drift autônomo
+        const targetHeadY = s.lookX * 0.7 + headDrift.currentY;
+        const targetHeadX = s.lookY * 0.7 - 0.02;
+
         if (head) {
-          head.rotation.y = lerp(head.rotation.y, tgtHY, SMOOTH);
-          head.rotation.x = lerp(head.rotation.x, tgtHX, SMOOTH);
+          head.rotation.y = lerp(head.rotation.y, targetHeadY, SMOOTH);
+          head.rotation.x = lerp(head.rotation.x, targetHeadX, SMOOTH);
+          head.rotation.z = lerp(head.rotation.z, s.moodTiltZ ?? 0, SMOOTH);
         }
         if (neck) {
-          neck.rotation.y = lerp(neck.rotation.y, s.lookX * 0.3, SMOOTH);
+          neck.rotation.y = lerp(neck.rotation.y, (s.lookX * 0.3 + headDrift.currentY * 0.4), SMOOTH);
           neck.rotation.x = lerp(neck.rotation.x, s.lookY * 0.3, SMOOTH);
         }
         if (vrm.lookAt) {
@@ -164,28 +203,14 @@ export function AvatarVRM({ modelUrl, mood, isTalking }) {
           vrm.lookAt.pitch = lerp(vrm.lookAt.pitch ?? 0, -s.lookY * 9,  SMOOTH);
         }
 
-        // ── Breathing ──────────────────────────────────────────────────
-        const breath = Math.sin(t * 1.4) * 0.012;
-        const chest = getBone("chest");
-        const spine = getBone("spine");
-        if (chest) chest.rotation.x = lerp(chest.rotation.x, -0.02 + breath, SMOOTH);
-        if (spine) spine.rotation.x = lerp(spine.rotation.x,  0.02 - breath * 0.5, SMOOTH);
-
-        // ── Body sway ──────────────────────────────────────────────────
-        const hips = getBone("hips");
-        if (hips) {
-          hips.rotation.z = lerp(hips.rotation.z, Math.sin(t * 0.7) * 0.01, SMOOTH);
-          hips.rotation.x = lerp(hips.rotation.x, Math.sin(t * 0.4) * 0.004, SMOOTH);
-        }
-
         // ── Shoulder subtle ────────────────────────────────────────────
         const lShoulder = getBone("leftShoulder");
         const rShoulder = getBone("rightShoulder");
-        const sf = Math.sin(t * 0.6) * 0.012;
+        const sf = Math.sin(t * 0.6) * 0.012 + breathCycle * 0.008;
         if (lShoulder) lShoulder.rotation.z = lerp(lShoulder.rotation.z,  sf, SMOOTH);
         if (rShoulder) rShoulder.rotation.z = lerp(rShoulder.rotation.z, -sf, SMOOTH);
 
-        // ── Braços em pose de descanso fixa ───────────────────────────
+        // ── Braços em pose de descanso ─────────────────────────────────
         const rArm  = getBone("rightUpperArm");
         const rFore = getBone("rightLowerArm");
         const rHand = getBone("rightHand");
@@ -194,7 +219,6 @@ export function AvatarVRM({ modelUrl, mood, isTalking }) {
         const lHand = getBone("leftHand");
 
         if (rArm)  rArm.rotation.z  = lerp(rArm.rotation.z,  -1.1, SMOOTH);
-        if (rArm)  rArm.rotation.x  = lerp(rArm.rotation.x,   0.0, SMOOTH);
         if (rFore) rFore.rotation.z = lerp(rFore.rotation.z,  -0.3, SMOOTH);
         if (rHand) rHand.rotation.z = lerp(rHand.rotation.z,  -0.1, SMOOTH);
         if (lArm)  lArm.rotation.z  = lerp(lArm.rotation.z,   1.1, SMOOTH);
@@ -240,15 +264,69 @@ export function AvatarVRM({ modelUrl, mood, isTalking }) {
 
   useEffect(() => {
     const em = stateRef.current.vrm?.expressionManager;
+    const h  = stateRef.current.vrm?.humanoid;
     if (!em) return;
-    ["happy","sad","surprised","angry","relaxed"].forEach(e => em.setValue(e, 0));
-    ({
-      happy:     () => em.setValue("happy",     0.9),
-      thinking:  () => em.setValue("sad",       0.4),
-      surprised: () => em.setValue("surprised", 1.0),
-      talking:   () => em.setValue("happy",     0.5),
+
+    // Zera tudo antes de aplicar nova expressão
+    ["surprised","sad","angry","relaxed"].forEach(e => em.setValue(e, 0));
+    em.setValue("blinkLeft",  0);
+    em.setValue("blinkRight", 0);
+
+    // Armazena inclinação de cabeça alvo por mood
+    // O loop de animação vai fazer lerp até esse valor
+    stateRef.current.moodTiltZ = 0;
+
+    const s = stateRef.current;
+
+    const moods = {
+      // ── Base ──────────────────────────────────────────────────────
+      happy:     () => em.setValue("surprised", 0.9),
+      talking:   () => em.setValue("surprised", 0.5),
       idle:      () => em.setValue("relaxed",   0.6),
-    })[mood]?.();
+
+      // ── Pensativa ─────────────────────────────────────────────────
+      thinking: () => {
+        em.setValue("sad", 0.35);
+        s.moodTiltZ = -0.08;
+      },
+
+      // ── Surpresa real — intensidade máxima ────────────────────────
+      surprised: () => em.setValue("surprised", 1.0),
+      excited:   () => em.setValue("surprised", 1.0),
+
+      // ── Envergonhada / tímida ─────────────────────────────────────
+      embarrassed: () => {
+        em.setValue("surprised", 0.3);
+        em.setValue("relaxed",   0.3);
+        s.moodTiltZ = 0.10;
+        if (s.vrm?.lookAt) {
+          s.vrm.lookAt.pitch = lerp(s.vrm.lookAt.pitch ?? 0, 8, 0.3);
+        }
+      },
+
+      // ── Confusa ───────────────────────────────────────────────────
+      confused: () => {
+        em.setValue("sad",       0.3);
+        em.setValue("surprised", 0.2);
+        s.moodTiltZ = -0.13;
+      },
+
+      // ── Piscadela ─────────────────────────────────────────────────
+      wink: () => {
+        em.setValue("relaxed", 0.5);
+        s.moodTiltZ = 0.08;
+        em.setValue("blinkLeft", 1);
+        setTimeout(() => {
+          em.setValue("blinkLeft", 0);
+          setTimeout(() => {
+            em.setValue("blinkLeft", 1);
+            setTimeout(() => em.setValue("blinkLeft", 0), 120);
+          }, 200);
+        }, 400);
+      },
+    };
+
+    moods[mood]?.();
   }, [mood]);
 
   return (

@@ -29,10 +29,7 @@ const TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          query: {
-            type: "string",
-            description: "O que pesquisar na internet, em português ou inglês",
-          },
+          query: { type: "string", description: "O que pesquisar na internet, em português ou inglês" },
         },
         required: ["query"],
       },
@@ -40,8 +37,31 @@ const TOOLS = [
   },
 ];
 
-export async function sendMessage(messages, facts = [], summary = "") {
-  const systemPrompt = buildSystemPrompt(facts, summary); // ✅ facts injetados aqui
+// ── Monta system prompt com as 3 camadas de memória ──────────────────────────
+function buildMemoryContext(facts = [], summary = "", importantEvents = []) {
+  const parts = [];
+
+  if (facts.length > 0) {
+    parts.push(`📌 FATOS SOBRE O USUÁRIO:\n${facts.map(f => `• ${f}`).join("\n")}`);
+  }
+
+  if (summary) {
+    parts.push(`💬 RESUMO DO RELACIONAMENTO:\n${summary}`);
+  }
+
+  if (importantEvents.length > 0) {
+    parts.push(`⭐ MOMENTOS IMPORTANTES:\n${importantEvents.map(e => `• ${e}`).join("\n")}`);
+  }
+
+  return parts.length > 0 ? parts.join("\n\n") : "";
+}
+
+// ── sendMessage ───────────────────────────────────────────────────────────────
+export async function sendMessage(messages, facts = [], summary = "", importantEvents = []) {
+  const memoryContext = buildMemoryContext(facts, summary, importantEvents);
+
+  // buildSystemPrompt recebe o contexto de memória para injetar no prompt base
+  const systemPrompt = buildSystemPrompt(facts, summary, importantEvents, memoryContext);
 
   const response = await fetch(API_URL, {
     method: "POST",
@@ -100,6 +120,52 @@ export async function sendMessage(messages, facts = [], summary = "") {
   return message?.content ?? KIRA_ERROR_MESSAGE;
 }
 
+// ── detectMood — analisa a resposta da Kira e retorna o mood ──────────────────
+export async function detectMood(kiraReply) {
+  try {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${import.meta.env.VITE_GROQ_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        max_tokens: 10,
+        temperature: 0.1,
+        messages: [
+          {
+            role: "system",
+            content: `Você analisa o tom emocional de uma fala de personagem e retorna APENAS uma palavra do mood.
+Opções disponíveis: happy, excited, embarrassed, confused, surprised, thinking, wink, idle
+Regras:
+- excited: animação, empolgação, comemorando algo
+- embarrassed: timidez, elogio recebido, algo íntimo/pessoal
+- confused: dúvida, não entendeu, algo contraditório
+- surprised: algo inesperado, chocante ou incrível
+- thinking: reflexão, análise, resposta técnica ou filosófica
+- wink: piada, ironia, flerte leve, cumplicidade
+- happy: padrão positivo e animado
+- idle: neutro, sem emoção clara
+Responda APENAS com a palavra, sem pontuação.`,
+          },
+          {
+            role: "user",
+            content: kiraReply.slice(0, 300), // usa só o início pra economizar tokens
+          },
+        ],
+      }),
+    });
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content?.trim().toLowerCase();
+
+    const valid = ["happy","excited","embarrassed","confused","surprised","thinking","wink","idle"];
+    return valid.includes(text) ? text : "happy";
+  } catch {
+    return "happy";
+  }
+}
 export async function detectFact(userMessage) {
   try {
     const response = await fetch(API_URL, {
@@ -119,10 +185,7 @@ export async function detectFact(userMessage) {
 Se houver um fato relevante (nome, idade, profissão, hobby, gosto, desgosto, localização, etc), responda APENAS com o fato em português resumido em até 10 palavras.
 Se não houver nenhum fato relevante, responda exatamente: null`,
           },
-          {
-            role: "user",
-            content: userMessage,
-          },
+          { role: "user", content: userMessage },
         ],
       }),
     });

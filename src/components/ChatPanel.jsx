@@ -1,4 +1,5 @@
-export function ChatPanel({ messages, input, setInput, isLoading, chatRef, submit, handleKeyDown, clearMemory, serverOnline, pendingFact, confirmFact, rejectFact }) {
+
+export function ChatPanel({ messages, input, setInput, isLoading, chatRef, submit, handleKeyDown, clearMemory, serverOnline, pendingFact, confirmFact, rejectFact, isListening, isProcessing, transcript, startListening, stopListening, micSupported, micError }) {
   const visible = messages.filter(m => m.role === "user" || m.role === "assistant");
 
   return (
@@ -7,14 +8,17 @@ export function ChatPanel({ messages, input, setInput, isLoading, chatRef, submi
       background: "#ffffff08", borderRadius: "20px", border: "1px solid #ffffff15",
       overflow: "hidden", backdropFilter: "blur(10px)",
     }}>
+      {/* Header */}
       <div style={{
         padding: "14px 20px", borderBottom: "1px solid #ffffff10",
         display: "flex", alignItems: "center", gap: "10px", background: "#ffffff05",
       }}>
         <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#ff2d55", animation: "twinkle 2s ease-in-out infinite" }} />
         <span style={{ color: "#ffffff88", fontSize: "13px", fontWeight: "600" }}>Chat ao vivo</span>
+
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
           {isLoading && <span style={{ color: "#ff6eb4", fontSize: "12px" }}>Kira está pensando...</span>}
+
           <div title={serverOnline ? "Memória salva em disco" : "Servidor offline"} style={{
             display: "flex", alignItems: "center", gap: "4px",
             fontSize: "11px", color: serverOnline ? "#4ade80" : "#f87171",
@@ -22,11 +26,14 @@ export function ChatPanel({ messages, input, setInput, isLoading, chatRef, submi
             <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: serverOnline ? "#4ade80" : "#f87171" }} />
             {serverOnline ? "memória ativa" : "servidor offline"}
           </div>
-          <div title={`${visible.length} mensagens`} style={{ fontSize: "11px", color: "#a855f788" }}>
+
+          <div title={`${visible.length} mensagens na memória`} style={{ fontSize: "11px", color: "#a855f788" }}>
             🧠 {visible.length}
           </div>
+
           <button
-            onClick={() => { if (confirm("Limpar histórico do chat? Fatos importantes serão mantidos.")) clearMemory(); }}
+            onClick={() => { if (confirm("Apagar toda a memória da Kira?")) clearMemory(); }}
+            title="Limpar memória"
             style={{
               background: "#ffffff0d", border: "1px solid #ffffff15",
               borderRadius: "8px", color: "#ffffff44", fontSize: "11px",
@@ -36,12 +43,38 @@ export function ChatPanel({ messages, input, setInput, isLoading, chatRef, submi
         </div>
       </div>
 
+      {/* Transcript preview */}
+      {(isListening || isProcessing) && (
+        <div style={{
+          padding: "8px 20px",
+          background: isProcessing ? "#a855f711" : "#ff6eb411",
+          borderBottom: `1px solid ${isProcessing ? "#a855f722" : "#ff6eb422"}`,
+          fontSize: "13px", color: isProcessing ? "#a855f7" : "#ff6eb4",
+          display: "flex", alignItems: "center", gap: "8px",
+        }}>
+          <div style={{
+            width: "8px", height: "8px", borderRadius: "50%",
+            background: isProcessing ? "#a855f7" : "#ff6eb4",
+            animation: "twinkle 0.6s ease-in-out infinite",
+          }} />
+          {isProcessing ? "Transcrevendo com Whisper..." : "Ouvindo... (clique ⏹ para parar)"}
+        </div>
+      )}
+      {micError && (
+        <div style={{ padding: "6px 20px", background: "#f8717111", borderBottom: "1px solid #f8717122", fontSize: "12px", color: "#f87171" }}>
+          ⚠ {micError}
+        </div>
+      )}
+
+      {/* Messages */}
       <div ref={chatRef} style={{
         flex: 1, overflowY: "auto", padding: "16px",
         display: "flex", flexDirection: "column", gap: "12px",
       }}>
         {visible.map((msg, i) => <MessageBubble key={i} msg={msg} />)}
         {isLoading && <TypingIndicator />}
+
+        {/* ✅ Confirmação de fato */}
         {pendingFact && (
           <FactConfirmation
             fact={pendingFact}
@@ -51,6 +84,7 @@ export function ChatPanel({ messages, input, setInput, isLoading, chatRef, submi
         )}
       </div>
 
+      {/* Input */}
       <div style={{
         padding: "12px 16px", borderTop: "1px solid #ffffff10",
         display: "flex", gap: "10px", background: "#ffffff05",
@@ -60,19 +94,45 @@ export function ChatPanel({ messages, input, setInput, isLoading, chatRef, submi
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Fale com a Kira~"
+          placeholder={isListening ? "Ouvindo você..." : "Fale com a Kira~"}
+          disabled={isListening}
           style={{
-            flex: 1, background: "#ffffff0d", border: "1px solid #ffffff20",
+            flex: 1, background: "#ffffff0d",
+            border: `1px solid ${isListening ? "#ff6eb4" : "#ffffff20"}`,
             borderRadius: "25px", padding: "10px 18px",
             color: "white", fontSize: "14px", transition: "all 0.2s",
+            opacity: isListening ? 0.6 : 1,
           }}
         />
-        <SendButton onClick={submit} disabled={isLoading || !input.trim()} isLoading={isLoading} />
+
+        {micSupported && (
+          <button
+            onClick={isListening ? stopListening : startListening}
+            title={isListening ? "Parar de ouvir" : "Falar com a Kira"}
+            style={{
+              background: isListening
+                ? "linear-gradient(135deg, #ff2d55, #ff6eb4)"
+                : "#ffffff15",
+              border: `1px solid ${isListening ? "#ff2d55" : "#ffffff22"}`,
+              borderRadius: "50%", width: "42px", height: "42px",
+              color: "white", fontSize: "16px",
+              cursor: "pointer", transition: "all 0.2s",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+              animation: isListening ? "pulse-glow 1s ease-in-out infinite" : "none",
+            }}
+          >
+            {isListening ? "⏹" : "🎤"}
+          </button>
+        )}
+
+        <SendButton onClick={submit} disabled={isLoading || !input.trim() || isListening} isLoading={isLoading} />
       </div>
     </div>
   );
 }
 
+// ✅ Confirmação de fato
 function FactConfirmation({ fact, onConfirm, onReject }) {
   return (
     <div style={{ display: "flex", alignItems: "flex-end", gap: "8px" }}>

@@ -64,8 +64,8 @@ export function AvatarVRM({ modelUrl, mood, isTalking }) {
     const maxAniso = renderer.capabilities.getMaxAnisotropy();
     const scene    = new THREE.Scene();
     const camera   = new THREE.PerspectiveCamera(14, CANVAS_W / CANVAS_H, 0.1, 20);
-    camera.position.set(0, 1.2, 3.0);
-    camera.lookAt(0, 1.28, 0);
+    camera.position.set(0, 1.2, 2.9);
+    camera.lookAt(0, 1.30, 0);
 
     scene.add(new THREE.AmbientLight(0xfff5ff, 1.4));
     const key = new THREE.DirectionalLight(0xffffff, 2.2);
@@ -81,7 +81,7 @@ export function AvatarVRM({ modelUrl, mood, isTalking }) {
     loader.register(parser => new VRMLoaderPlugin(parser));
     loader.load(modelUrl, gltf => {
       const vrm = gltf.userData.vrm;
-      VRMUtils.removeUnnecessaryJoints(gltf.scene);
+      VRMUtils.combineSkeletons(gltf.scene);
       VRMUtils.rotateVRM0(vrm);
 
       vrm.scene.traverse(obj => {

@@ -50,7 +50,7 @@ export function useKiraChat() {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [messages, isLoading, pendingFact]);
 
-  // Salva mensagens com debounce
+  // Salva mensagens com debounce — 1500ms evita disparos duplos
   useEffect(() => {
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
@@ -63,7 +63,7 @@ export function useKiraChat() {
         const { facts, summary, importantEvents } = await loadMemory();
         setMemoryData({ facts, summary, importantEvents });
       }
-    }, 300);
+    }, 1500); // ← era 300ms, agora 1500ms
   }, [messages]);
 
   // ── Busca na web ──────────────────────────────────────────────────────────
@@ -119,7 +119,6 @@ export function useKiraChat() {
     try {
       const apiMsgs = nextMsgs.filter(m => m.role === "user" || m.role === "assistant");
 
-      // Busca web e detectFact em paralelo
       const [searchContext, fact] = await Promise.all([
         runWebSearch(userMsg.content),
         detectFact(userMsg.content),

@@ -78,18 +78,18 @@ export async function detectMood(kiraReply) {
         messages: [
           {
             role: "system",
-            content: `Você analisa o tom emocional de uma fala de personagem e retorna APENAS uma palavra do mood.
-Opções disponíveis: happy, excited, embarrassed, confused, surprised, thinking, wink, idle
-Regras:
-- excited: animação, empolgação, comemorando algo
-- embarrassed: timidez, elogio recebido, algo íntimo/pessoal
-- confused: dúvida, não entendeu, algo contraditório
-- surprised: algo inesperado, chocante ou incrível
-- thinking: reflexão, análise, resposta técnica ou filosófica
-- wink: piada, ironia, flerte leve, cumplicidade
-- happy: padrão positivo e animado
-- idle: neutro, sem emoção clara
-Responda APENAS com a palavra, sem pontuação.`,
+                          content: `Você analisa o tom emocional de uma fala de personagem e retorna APENAS uma palavra do mood.
+              Opções disponíveis: happy, excited, embarrassed, confused, surprised, thinking, wink, idle
+              Regras:
+              - excited: animação, empolgação, comemorando algo
+              - embarrassed: timidez, elogio recebido, algo íntimo/pessoal
+              - confused: dúvida, não entendeu, algo contraditório
+              - surprised: algo inesperado, chocante ou incrível
+              - thinking: reflexão, análise, resposta técnica ou filosófica
+              - wink: piada, ironia, flerte leve, cumplicidade
+              - happy: padrão positivo e animado
+              - idle: neutro, sem emoção clara
+              Responda APENAS com a palavra, sem pontuação.`,
           },
           {
             role:    "user",
@@ -124,9 +124,9 @@ export async function detectFact(userMessage) {
         messages: [
           {
             role: "system",
-            content: `Você analisa mensagens e detecta fatos pessoais relevantes sobre o usuário.
-Se houver um fato relevante (nome, idade, profissão, hobby, gosto, desgosto, localização, etc), responda APENAS com o fato em português resumido em até 10 palavras.
-Se não houver nenhum fato relevante, responda exatamente: null`,
+                          content: `Você analisa mensagens e detecta fatos pessoais relevantes sobre o usuário.
+              Se houver um fato relevante (nome, idade, profissão, hobby, gosto, desgosto, localização, etc), responda APENAS com o fato em português resumido em até 10 palavras.
+              Se não houver nenhum fato relevante, responda exatamente: null`,
           },
           { role: "user", content: userMessage },
         ],

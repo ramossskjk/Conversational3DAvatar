@@ -14,16 +14,16 @@ const RECENT_LIMIT    = 20;
 const SUMMARIZE_EVERY = 10;
 const MAX_EVENTS      = 20;
 
-// ── Estrutura de evento ───────────────────────────────────────────────────────
-// { text: string, expiresAt: "YYYY-MM-DD" | null, createdAt: string }
-// expiresAt: null = permanente (ex: "gosto de café")
-// expiresAt: data = expira automaticamente após essa data
+// ── Lock — evita sumarizações concorrentes ────────────────────────────────────
+let isSummarizing = false;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function emptyMemory() {
   return {
     facts:            [],
     summary:          "",
-    importantEvents:  [],   // array de objetos { text, expiresAt, createdAt }
+    importantEvents:  [],
     recentMessages:   [],
     lastSummarizedAt: 0,
     totalSaved:       0,
@@ -35,17 +35,7 @@ export function readMemory() {
   try {
     if (!fs.existsSync(MEMORY_FILE)) return emptyMemory();
     const data = JSON.parse(fs.readFileSync(MEMORY_FILE, "utf-8"));
-
-    // Migração: converte strings antigas para o novo formato de objeto
-    if (data.importantEvents?.length > 0 && typeof data.importantEvents[0] === "string") {
-      data.importantEvents = data.importantEvents.map(text => ({
-        text,
-        expiresAt:  null,
-        createdAt:  new Date().toISOString(),
-      }));
-    }
-
-    // Migração do formato antigo (server/)
+    // Migração formato antigo (server/)
     if (data.messages && !data.recentMessages) {
       data.recentMessages   = data.messages;
       data.importantEvents  = data.importantEvents ?? [];
@@ -53,7 +43,12 @@ export function readMemory() {
       data.totalSaved       = data.messages.length;
       delete data.messages;
     }
-
+    // Migração eventos string → objeto
+    if (Array.isArray(data.importantEvents)) {
+      data.importantEvents = data.importantEvents.map(e =>
+        typeof e === "string" ? { text: e, expiresAt: null } : e
+      );
+    }
     return { ...emptyMemory(), ...data };
   } catch {
     return emptyMemory();
@@ -64,35 +59,66 @@ export function writeMemory(data) {
   fs.writeFileSync(MEMORY_FILE, JSON.stringify(data, null, 2), "utf-8");
 }
 
-// ── Remove eventos expirados automaticamente ──────────────────────────────────
-export function purgeExpiredEvents() {
-  const data    = readMemory();
-  const today   = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-  const before  = data.importantEvents.length;
+// ── Limpeza automática de eventos expirados ───────────────────────────────────
 
-  data.importantEvents = data.importantEvents.filter(ev => {
-    if (!ev.expiresAt) return true;           // permanente — mantém
-    return ev.expiresAt >= today;             // mantém se ainda não expirou
+export function purgeExpiredEvents() {
+  const data = readMemory();
+  const now  = Date.now();
+  const before = data.importantEvents.length;
+
+  data.importantEvents = data.importantEvents.filter(e => {
+    if (!e.expiresAt) return true;
+    return new Date(e.expiresAt).getTime() > now;
   });
 
   const removed = before - data.importantEvents.length;
   if (removed > 0) {
-    console.log(`🗑️  ${removed} evento(s) expirado(s) removido(s) automaticamente`);
+    console.log(`🗑️  ${removed} evento(s) expirado(s) removido(s)`);
     writeMemory({ ...data, updatedAt: new Date().toISOString() });
   }
-
   return { removed };
 }
 
-// ── Remove evento manualmente por índice ─────────────────────────────────────
-export function removeEvent(index) {
-  const data = readMemory();
-  if (index < 0 || index >= data.importantEvents.length) {
-    return { ok: false, error: "Índice inválido" };
+// ── Detecta data em texto de evento ──────────────────────────────────────────
+
+function extractEventDate(text) {
+  const now   = new Date();
+  const lower = text.toLowerCase();
+
+  if (/amanh[ãa]/.test(lower)) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 2);
+    d.setHours(23, 59, 59, 0);
+    return d.toISOString();
   }
-  const removed = data.importantEvents.splice(index, 1)[0];
-  writeMemory({ ...data, updatedAt: new Date().toISOString() });
-  return { ok: true, removed };
+  if (/\bhoje\b/.test(lower)) {
+    const d = new Date(now);
+    d.setHours(23, 59, 59, 0);
+    return d.toISOString();
+  }
+  if (/essa semana|esta semana/.test(lower)) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + (7 - d.getDay()));
+    d.setHours(23, 59, 59, 0);
+    return d.toISOString();
+  }
+  if (/pr[oó]xima semana/.test(lower)) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 14);
+    d.setHours(23, 59, 59, 0);
+    return d.toISOString();
+  }
+  const diaMatch = lower.match(/dia\s+(\d{1,2})(?:\/(\d{1,2}))?/);
+  if (diaMatch) {
+    const d   = new Date(now);
+    const day = parseInt(diaMatch[1]);
+    const mon = diaMatch[2] ? parseInt(diaMatch[2]) - 1 : d.getMonth();
+    d.setMonth(mon);
+    d.setDate(day + 1);
+    d.setHours(23, 59, 59, 0);
+    return d.toISOString();
+  }
+  return null;
 }
 
 function extractFactsByRegex(messages) {
@@ -122,10 +148,7 @@ function extractFactsByRegex(messages) {
 
 async function summarizeWithGroq(recentMessages, existingFacts, existingSummary, existingEvents, apiKey) {
   try {
-    // Serializa eventos para o prompt (usa só o texto)
-    const eventsText = existingEvents.map(e =>
-      typeof e === "string" ? e : `${e.text}${e.expiresAt ? ` (até ${e.expiresAt})` : ""}`
-    );
+    const eventsText = existingEvents.map(e => e.text ?? e);
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -135,19 +158,16 @@ async function summarizeWithGroq(recentMessages, existingFacts, existingSummary,
       },
       body: JSON.stringify({
         model:       "llama-3.3-70b-versatile",
-        max_tokens:  900,
+        max_tokens:  768,
         temperature: 0.3,
         messages: [
           {
             role: "system",
             content: `Você é o sistema de memória de Kira, uma VTuber IA.
 Retorne APENAS um JSON válido com exatamente estas chaves:
-- "facts": array de strings com fatos pessoais permanentes do usuário
+- "facts": array de strings com fatos pessoais do usuário
 - "summary": string de 2-4 frases sobre o relacionamento Kira/usuário. NUNCA vazia.
-- "importantEvents": array de objetos com { "text": string, "expiresAt": "YYYY-MM-DD" ou null }
-  - Use expiresAt com data real para eventos temporários (reuniões, compromissos, prazos)
-  - Use expiresAt null para eventos permanentes (conquistas, marcos do relacionamento)
-  - Máx ${MAX_EVENTS} eventos
+- "importantEvents": array de strings (máx ${MAX_EVENTS}) com momentos marcantes. Para eventos temporários inclua a data na string.
 Sem markdown, apenas JSON puro.`,
           },
           {
@@ -171,23 +191,16 @@ ${recentMessages
     const text   = data.choices?.[0]?.message?.content ?? "{}";
     const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
 
-    // Normaliza eventos retornados pelo Groq
-    const normalizeEvents = (events) => {
-      if (!Array.isArray(events)) return existingEvents;
-      return events.map(e => {
-        if (typeof e === "string") return { text: e, expiresAt: null, createdAt: new Date().toISOString() };
-        return {
-          text:      e.text      ?? "",
-          expiresAt: e.expiresAt ?? null,
-          createdAt: new Date().toISOString(),
-        };
+    const newEvents = (Array.isArray(parsed.importantEvents) ? parsed.importantEvents : eventsText)
+      .map(e => {
+        const str = typeof e === "string" ? e : e.text;
+        return { text: str, expiresAt: extractEventDate(str) };
       });
-    };
 
     return {
-      facts:           parsed.facts?.length           ? parsed.facts           : existingFacts,
-      summary:         parsed.summary?.trim()?.length ? parsed.summary         : existingSummary,
-      importantEvents: normalizeEvents(parsed.importantEvents),
+      facts:           parsed.facts?.length           ? parsed.facts        : existingFacts,
+      summary:         parsed.summary?.trim()?.length  ? parsed.summary      : existingSummary,
+      importantEvents: newEvents,
     };
   } catch (err) {
     console.error("❌ Erro ao sumarizar:", err.message);
@@ -196,9 +209,9 @@ ${recentMessages
 }
 
 // ── Aprende com resultados de busca ──────────────────────────────────────────
-export async function learnFromSearch(query, searchResults, apiKey) {
-  if (!apiKey || !searchResults) return;
 
+export async function learnFromSearch(searchResults, apiKey) {
+  if (!apiKey || !searchResults) return;
   try {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -213,16 +226,11 @@ export async function learnFromSearch(query, searchResults, apiKey) {
         messages: [
           {
             role: "system",
-            content: `Você extrai fatos úteis e duradouros de resultados de busca.
-Retorne APENAS um JSON: {"facts": ["fato 1", "fato 2"]} com até 3 fatos concisos e objetivos.
-Se não houver fatos úteis para guardar, retorne {"facts": []}.
-Ignore informações temporárias, preços ou notícias passageiras.
-Sem markdown, apenas JSON puro.`,
+            content: `Analise os resultados de busca e extraia fatos objetivos úteis para memorizar.
+Retorne APENAS JSON: {"facts": ["fato 1"]} ou {"facts": []} se não houver nada relevante.
+Máximo 3 fatos por busca. Apenas fatos concretos, não opiniões.`,
           },
-          {
-            role: "user",
-            content: `Query: "${query}"\n\nResultados:\n${searchResults}`,
-          },
+          { role: "user", content: searchResults },
         ],
       }),
     });
@@ -263,15 +271,21 @@ export async function saveMemory(messages, apiKey) {
   let summarized       = false;
   let lastSummarizedAt = current.lastSummarizedAt;
 
-  if (msgsSince >= SUMMARIZE_EVERY) {
-    console.log(`🧠 Sumarizando (${msgsSince} novas msgs)...`);
-    const ai     = await summarizeWithGroq(recentMessages, allFacts, summary, importantEvents, apiKey);
-    allFacts         = [...new Set(ai.facts)];
-    summary          = ai.summary;
-    importantEvents  = ai.importantEvents.slice(0, MAX_EVENTS);
-    lastSummarizedAt = totalSaved;
-    summarized       = true;
-    console.log(`✅ Fatos: ${allFacts.length} | Eventos: ${importantEvents.length}`);
+  // ── Lock — só sumariza se não há sumarização em curso ────────────────────
+  if (msgsSince >= SUMMARIZE_EVERY && !isSummarizing) {
+    isSummarizing = true;
+    try {
+      console.log(`🧠 Sumarizando (${msgsSince} novas msgs)...`);
+      const ai     = await summarizeWithGroq(recentMessages, allFacts, summary, importantEvents, apiKey);
+      allFacts         = [...new Set(ai.facts)];
+      summary          = ai.summary;
+      importantEvents  = ai.importantEvents.slice(0, MAX_EVENTS);
+      lastSummarizedAt = totalSaved;
+      summarized       = true;
+      console.log(`✅ Fatos: ${allFacts.length} | Eventos: ${importantEvents.length}`);
+    } finally {
+      isSummarizing = false; // libera o lock mesmo se der erro
+    }
   }
 
   writeMemory({
@@ -301,6 +315,19 @@ export function addFact(fact) {
   const allFacts = [...new Set([...current.facts, fact])];
   writeMemory({ ...current, facts: allFacts, updatedAt: new Date().toISOString() });
   return { ok: true, factCount: allFacts.length };
+}
+
+export function removeEvent(indexOrText) {
+  const current = readMemory();
+  if (typeof indexOrText === "number") {
+    current.importantEvents.splice(indexOrText, 1);
+  } else {
+    current.importantEvents = current.importantEvents.filter(
+      e => (e.text ?? e) !== indexOrText
+    );
+  }
+  writeMemory({ ...current, updatedAt: new Date().toISOString() });
+  return { ok: true, events: current.importantEvents };
 }
 
 export async function forceSummarize(apiKey) {

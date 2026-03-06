@@ -1,4 +1,3 @@
-
 import "./styles/globals.css";
 import { BackgroundParticles } from "./components/BackgroundParticles";
 import { StreamFrame }         from "./components/StreamFrame";
@@ -14,7 +13,9 @@ export default function App() {
     isTalking, chatRef,
     submit, handleKeyDown, clearMemory,
     serverOnline,
-    pendingFact, confirmFact, rejectFact, // ✅ adicionado
+    pendingFact, confirmFact, rejectFact,
+    isSearching,
+    memoryData,
   } = useKiraChat();
 
   return (
@@ -31,9 +32,11 @@ export default function App() {
           submit={submit} handleKeyDown={handleKeyDown}
           clearMemory={clearMemory}
           serverOnline={serverOnline}
-          pendingFact={pendingFact}   // ✅ adicionado
-          confirmFact={confirmFact}   // ✅ adicionado
-          rejectFact={rejectFact}     // ✅ adicionado
+          pendingFact={pendingFact}
+          confirmFact={confirmFact}
+          rejectFact={rejectFact}
+          isSearching={isSearching}
+          memoryData={memoryData}
         />
       </div>
     </div>

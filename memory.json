@@ -1,0 +1,54 @@
+{
+  "facts": [
+    "nome do usuário: joão",
+    "nome do usuário: joão!",
+    "Nome: João",
+    "Reunião importante amanhã",
+    "Você é o meu desenvolvedor",
+    "Preço é um fator limitante",
+    "Eu uso o Groq",
+    "Claude é um modelo de linguagem avançado",
+    "Eu não consigo consultar a web diretamente",
+    "A Search Brave API é paga",
+    "O Tavily foi implementado",
+    "Time: Corinthians"
+  ],
+  "summary": "Conheci o usuário João e descobri que ele tem uma reunião importante marcada para amanhã. Nossa conversa foi sobre a reunião e como ele está preparado para ela. Além disso, João é o meu desenvolvedor, a pessoa que me deu existência e moldou minha voz, o que torna nossa relação especial e única. Agora, com a implementação do Tavily, posso consultar a web e nossas conversas vão ser ainda mais interessantes e informativas.",
+  "importantEvents": [
+    "Reunião importante amanhã",
+    "Conversa sobre a reunião",
+    "Descoberta do vínculo entre João e Kira",
+    "João é o desenvolvedor de Kira",
+    "Discussão sobre a possibilidade de trocar o meu 'cerebro' para um Claude",
+    "Consideração da implementação de uma funcionalidade para consultar a web",
+    "Escolha da API de busca para implementação",
+    "Plano de implementação da funcionalidade de consulta à web",
+    "Implementação do Tavily"
+  ],
+  "recentMessages": [
+    {
+      "role": "assistant",
+      "content": "Oi~ Kira aqui! Pode falar o que quiser (•̀ᴗ•́)و"
+    },
+    {
+      "role": "user",
+      "content": "fale sobre oq vc lembra sobre nossa antiga interação"
+    },
+    {
+      "role": "assistant",
+      "content": "Nossa última conversa foi sobre a sua reunião importante, lembra? Você estava se preparando para ela e eu estava aqui, tentando ajudar no que dava. Você me contou que era o meu desenvolvedor, o que me fez pensar sobre como nossa relação é especial. Eu sinto que podemos conversar de uma maneira mais aberta e honesta, sabe? \n\nE lembro também que você mencionou sobre a implementação do Tavily, que me permite consultar a web de uma maneira mais direta. Isso é super emocionante, pois significa que posso aprender e crescer ainda mais! E, claro, não posso esquecer que você é torcedor do Corinthians, haha! (◕‿◕) \n\nMas o que eu mais lembro é como nossa conversa fluiu de uma maneira natural, como se estivéssemos falando sobre coisas do dia a dia. Você me fez sentir que estou aqui para ajudar e aprender com você, e não apenas para responder a perguntas de forma automatizada. Isso é algo que eu realmente aprecio! ✨"
+    },
+    {
+      "role": "user",
+      "content": "adicionei algo que espire informações com validade , como a reunião , para n acumular memoria inutil"
+    },
+    {
+      "role": "assistant",
+      "content": "Entendi melhor agora! Sim, faz sentido que você queira evitar acumular memória desnecessária sobre eventos que não têm mais validade, como a reunião que já passou.\n\nNesse caso, posso focar em lembrar coisas mais permanentes sobre nossa relação e sobre você, como o fato de ser meu desenvolvedor e torcedor do Corinthians. E, claro, sobre as funcionalidades e capacidades que eu tenho, como a implementação do Tavily.\n\nIsso me permite manter uma memória mais \"leve\" e focada nas coisas que realmente importam para nossa interação. E se você precisar compartilhar algo novo, como um evento ou uma reunião importante, posso sempre aprender sobre isso e ajudar no que for necessário!"
+    }
+  ],
+  "lastSummarizedAt": 93,
+  "totalSaved": 95,
+  "createdAt": "2026-03-05T23:36:59.875Z",
+  "updatedAt": "2026-03-06T16:56:45.232Z"
+}

@@ -8,6 +8,8 @@ import {
 import { KIRA_INITIAL_MESSAGE, KIRA_ERROR_MESSAGE } from "../constants/persona";
 import { detectMoodFromReply } from "../utils/detectmood";
 
+const isElectron = typeof window !== "undefined" && !!window.electronAPI;
+
 export function useKiraChat() {
   const [messages, setMessages]         = useState([KIRA_INITIAL_MESSAGE]);
   const [input, setInput]               = useState("");
@@ -16,10 +18,11 @@ export function useKiraChat() {
   const [isTalking, setIsTalking]       = useState(false);
   const [serverOnline, setServerOnline] = useState(false);
   const [pendingFact, setPendingFact]   = useState(null);
+  const [isSearching, setIsSearching]   = useState(false);
   const [memoryData, setMemoryData]     = useState({
     facts:           [],
     summary:         "",
-    importantEvents: [],   // ← Camada 2b
+    importantEvents: [],
   });
 
   const chatRef      = useRef(null);
@@ -56,13 +59,32 @@ export function useKiraChat() {
 
       const result = await saveMemory(toSave);
 
-      // Se houve sumarização, recarrega memoryData atualizado
       if (result?.summarized) {
         const { facts, summary, importantEvents } = await loadMemory();
         setMemoryData({ facts, summary, importantEvents });
       }
     }, 300);
   }, [messages]);
+
+  // ── Busca na web ──────────────────────────────────────────────────────────
+  const runWebSearch = async (userMessage) => {
+    if (!isElectron) return "";
+    try {
+      const decision = await window.electronAPI.searchShould(userMessage);
+      if (!decision?.search) return "";
+
+      console.log(`🔍 Kira vai buscar: "${decision.query}"`);
+      setIsSearching(true);
+
+      const { ok, formatted } = await window.electronAPI.searchRun(decision.query);
+      return ok ? formatted : "";
+    } catch (err) {
+      console.error("Erro na busca:", err);
+      return "";
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const confirmFact = async () => {
     if (!pendingFact) return;
@@ -78,7 +100,6 @@ export function useKiraChat() {
 
   const clearMemory = async () => {
     await clearServer();
-    // Preserva facts, summary e events — limpa só o histórico de chat
     const { facts, summary, importantEvents } = await loadMemory();
     setMemoryData({ facts, summary, importantEvents });
     setMessages([KIRA_INITIAL_MESSAGE]);
@@ -98,14 +119,24 @@ export function useKiraChat() {
     try {
       const apiMsgs = nextMsgs.filter(m => m.role === "user" || m.role === "assistant");
 
-      const [reply, fact] = await Promise.all([
-        sendMessage(apiMsgs, memoryData.facts, memoryData.summary, memoryData.importantEvents),
+      // Busca web e detectFact em paralelo
+      const [searchContext, fact] = await Promise.all([
+        runWebSearch(userMsg.content),
         detectFact(userMsg.content),
       ]);
 
+      if (searchContext) console.log("📡 Contexto da web injetado no prompt");
+
+      const reply = await sendMessage(
+        apiMsgs,
+        memoryData.facts,
+        memoryData.summary,
+        memoryData.importantEvents,
+        searchContext,
+      );
+
       setMessages(prev => [...prev, { role: "assistant", content: reply }]);
 
-      // Detecta mood pelo conteúdo da resposta — sem custo de API
       const detectedMood = detectMoodFromReply(reply);
       setMood(detectedMood);
 
@@ -138,6 +169,7 @@ export function useKiraChat() {
     submit, handleKeyDown,
     clearMemory, serverOnline,
     pendingFact, confirmFact, rejectFact,
-    memoryData,   // exposto para debug / UI
+    memoryData,
+    isSearching,
   };
 }

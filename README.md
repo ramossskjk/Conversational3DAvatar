@@ -1,6 +1,6 @@
 -_____________________________________________________________________________________________________________________________________-
 
-Conversational3DAvatar
+Conversational3DAvatar  ( WebApp  -   Electron )
 
 3D conversational avatar built with React, Vite and Three.js, integrated with an LLM API.
 
